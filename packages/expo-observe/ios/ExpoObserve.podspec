@@ -22,6 +22,7 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoAppMetrics'
   s.dependency 'EASClient'
   s.dependency 'EXUpdatesInterface'
+  s.dependency 'ExpoObserveInterface'
 
   s.resource_bundles = {'ExpoObserve_privacy' => ['PrivacyInfo.xcprivacy']}
 

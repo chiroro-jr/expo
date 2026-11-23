@@ -1,6 +1,7 @@
 // Copyright 2026-present 650 Industries. All rights reserved.
 
 import ExpoAppMetrics
+import ExpoObserveInterface
 import Foundation
 
 /// Records what integration clients report. Tests replace it.
@@ -52,6 +53,7 @@ internal struct AppMetricsIntegrationRecorder: IntegrationRecorder {
 internal final class IntegrationClient: ObserveClient, @unchecked Sendable {
   static let defaultErrorGroup = "error"
   static let defaultWarningGroup = "warning"
+  static let defaultEventGroup = "event"
 
   let integration: String
   private let ignoredCodes: Set<String>
@@ -111,6 +113,26 @@ internal final class IntegrationClient: ObserveClient, @unchecked Sendable {
         body: report.message,
         attributes: attributes,
         severity: .warn,
+        integration: integration
+      )
+      return true
+    }
+  }
+
+  @discardableResult
+  func logEvent(_ event: ObserveEvent) -> Bool {
+    return lock.withLock {
+      // An event has no message, so its name and body take the place of the message in the rate limit.
+      let message = event.name + "\n" + (event.body ?? "")
+      guard isValid, limiter.allow(message, in: event.rateLimitGroup ?? Self.defaultEventGroup) != nil else {
+        return false
+      }
+      recorder.logEvent(
+        event.name,
+        displayName: event.displayName,
+        body: event.body,
+        attributes: event.attributes.mapValues { $0.anyValue },
+        severity: Severity(rawValue: event.severity.rawValue) ?? .info,
         integration: integration
       )
       return true

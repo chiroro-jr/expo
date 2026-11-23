@@ -1,6 +1,7 @@
 // Copyright 2026-present 650 Industries. All rights reserved.
 
 import ExpoAppMetrics
+import ExpoObserveInterface
 import Testing
 
 @testable import ExpoObserve
@@ -110,7 +111,40 @@ struct IntegrationClientTests {
 
     #expect(!client.reportError(makeErrorReport("boom")))
     #expect(!client.reportWarning(makeWarningReport("slow")))
+    #expect(!client.logEvent(ObserveEvent(name: "fake.event")))
     #expect(recorder.errors.isEmpty)
     #expect(recorder.events.isEmpty)
+  }
+
+  @Test
+  func `records an event with its severity`() throws {
+    let client = makeClient()
+    let event = ObserveEvent(
+      name: "fake.event",
+      displayName: "Fake event",
+      body: "body",
+      attributes: ["count": .number(1)],
+      severity: .debug
+    )
+
+    #expect(client.logEvent(event))
+    let recorded = try #require(recorder.events.first)
+    #expect(recorded.name == "fake.event")
+    #expect(recorded.displayName == "Fake event")
+    #expect(recorded.body == "body")
+    #expect(recorded.severity == .debug)
+    #expect(recorded.integration == "fake")
+    #expect(recorded.attributes["count"] as? Double == 1)
+  }
+
+  @Test
+  func `limits events by their name and body`() {
+    let client = makeClient()
+
+    #expect(client.logEvent(ObserveEvent(name: "fake.event", body: "a")))
+    #expect(!client.logEvent(ObserveEvent(name: "fake.event", body: "a")))
+    #expect(client.logEvent(ObserveEvent(name: "fake.event", body: "b")))
+    #expect(client.logEvent(ObserveEvent(name: "fake.other", body: "a")))
+    #expect(client.reportError(makeErrorReport("fake.event\na")))
   }
 }

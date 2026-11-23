@@ -69,6 +69,7 @@ public final class ObserveModule: Module {
       let integrationConfigs = IntegrationHost.configs(from: config.integrations)
       ObserveUserDefaults.integrations = integrationConfigs
       IntegrationHost.shared.apply(integrationConfigs)
+      self.appContext?.moduleRegistry.getModule(implementing: ObserveIntegrationsModule.self)?.apply(integrationConfigs)
 
       // Broadcast the integrations config so integration libraries (e.g. expo-image) can activate.
       self.lastIntegrations = config.integrations ?? [:]

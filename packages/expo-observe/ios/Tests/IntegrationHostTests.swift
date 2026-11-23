@@ -1,5 +1,6 @@
 // Copyright 2026-present 650 Industries. All rights reserved.
 
+import ExpoObserveInterface
 import Foundation
 import Testing
 
@@ -131,6 +132,26 @@ struct IntegrationHostTests {
 
     #expect(integration.calls == ["setup {}"])
     #expect(duplicate.calls.isEmpty)
+  }
+
+  @Test
+  func `a client that the host makes shares the rate limit of the native integration`() {
+    host.register(integration)
+    host.apply(["fake": "{}"])
+    #expect(integration.clients[0].reportError(makeErrorReport("boom")))
+
+    let client = host.makeClient(integration: "fake", config: [:])
+
+    #expect(!client.reportError(makeErrorReport("boom")))
+    #expect(host.makeClient(integration: "other", config: [:]).reportError(makeErrorReport("boom")))
+  }
+
+  @Test
+  func `knows which native integrations are registered`() {
+    host.register(integration)
+
+    #expect(host.isRegistered("fake"))
+    #expect(!host.isRegistered("other"))
   }
 
   // MARK: - Config conversion

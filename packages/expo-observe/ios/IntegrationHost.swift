@@ -1,20 +1,21 @@
 // Copyright 2026-present 650 Industries. All rights reserved.
 
+import ExpoObserveInterface
 import Foundation
 
 /// Sets up the integrations that `Observe.configure` enables, and tears them down when a later `configure` changes
 /// their config or turns them off. One host serves the whole process. At launch, it applies the config that the last
 /// `configure` stored, before the app code runs, so the integrations see what the libraries log from the start.
-internal final class IntegrationHost: @unchecked Sendable {
+internal final class IntegrationHost: ObserveIntegrationHost, @unchecked Sendable {
   static let shared: IntegrationHost = {
     let host = IntegrationHost(recorder: AppMetricsIntegrationRecorder())
     host.register(ExpoUpdatesIntegration())
+    ObserveIntegrationRegistry.shared.setHost(host)
     return host
   }()
 
   private final class Registration {
     let integration: any ObserveIntegration
-    let limiter = ReportLimiter()
     /// The config JSON of the current setup, or `nil` when the integration is not set up.
     var configJson: String?
     var client: IntegrationClient?
@@ -31,6 +32,9 @@ internal final class IntegrationHost: @unchecked Sendable {
   /// The config JSON of each enabled integration, by name. `nil` until the first `apply`.
   private var configs: [String: String]?
   private var registrations: [String: Registration] = [:]
+  /// The rate limit of each integration, by name. The native and the JavaScript integrations of a library share it,
+  /// and it is kept when the config changes and when the app reloads.
+  private var limiters: [String: ReportLimiter] = [:]
 
   init(recorder: any IntegrationRecorder) {
     self.recorder = recorder
@@ -49,6 +53,19 @@ internal final class IntegrationHost: @unchecked Sendable {
       registrations[name] = Registration(integration: integration)
       update(name)
     }
+  }
+
+  /// Whether a native integration with the name is registered.
+  func isRegistered(_ name: String) -> Bool {
+    return lock.withLock {
+      return registrations[name] != nil
+    }
+  }
+
+  /// Returns a client for one setup of the integration with the name, for an integration that the host does not run,
+  /// such as a JavaScript integration.
+  func makeClient(integration name: String, config: [String: Any]) -> IntegrationClient {
+    return IntegrationClient(integration: name, config: config, limiter: limiter(for: name), recorder: recorder)
   }
 
   /// Applies the config JSON of each enabled integration, by name. An integration that is not in `configs` is torn
@@ -76,10 +93,21 @@ internal final class IntegrationHost: @unchecked Sendable {
     }
   }
 
+  private func limiter(for name: String) -> ReportLimiter {
+    return lock.withLock {
+      if let limiter = limiters[name] {
+        return limiter
+      }
+      let limiter = ReportLimiter()
+      limiters[name] = limiter
+      return limiter
+    }
+  }
+
   private func start(_ registration: Registration, configJson: String) {
     let name = registration.integration.name
     let config = Self.parseConfig(configJson)
-    let client = IntegrationClient(integration: name, config: config, limiter: registration.limiter, recorder: recorder)
+    let client = makeClient(integration: name, config: config)
     // Set before the setup, so a setup that throws is not retried until the config changes.
     registration.configJson = configJson
     do {
@@ -104,7 +132,7 @@ internal final class IntegrationHost: @unchecked Sendable {
     client?.invalidate()
   }
 
-  private static func parseConfig(_ json: String) -> [String: Any] {
+  static func parseConfig(_ json: String) -> [String: Any] {
     let object = try? JSONSerialization.jsonObject(with: Data(json.utf8))
     return object as? [String: Any] ?? [:]
   }
