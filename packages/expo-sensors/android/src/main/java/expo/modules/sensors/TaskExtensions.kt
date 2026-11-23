@@ -33,7 +33,11 @@ internal suspend fun <T> awaitTask(operationName: String, createTask: () -> Task
   } catch (_: TimeoutCancellationException) {
     throw TaskTimeoutException(operationName)
   } catch (e: CancellationException) {
-    throw if (task.isCanceled) TaskCancelledException(operationName) else e
+    throw if (task.isCanceled) {
+      TaskCancelledException(operationName)
+    } else {
+      e
+    }
   } catch (_: SecurityException) {
     throw missingActivityRecognitionPermission()
   } catch (e: Exception) {

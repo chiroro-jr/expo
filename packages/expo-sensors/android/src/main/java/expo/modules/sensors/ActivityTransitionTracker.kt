@@ -118,7 +118,6 @@ internal class ActivityTransitionTracker(
       }
     }
   )
-
 }
 
 internal fun Module.createActivityTransitionTracker(onEvent: (PedometerActivityEvent) -> Unit) =
