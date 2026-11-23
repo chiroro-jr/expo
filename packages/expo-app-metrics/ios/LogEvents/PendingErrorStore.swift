@@ -2,7 +2,8 @@
 
 import Foundation
 
-/// Durable store for fatal JavaScript errors.
+/// Durable store for fatal JavaScript errors, and for integration errors that are reported just before the
+/// process can end (see `AppMetrics.reportIntegrationError`).
 ///
 /// A fatal error terminates the process moments after the `global.ErrorUtils` handler returns, so the
 /// normal async (actor + SQLite) log path can race the shutdown and lose the record. Instead, the
@@ -20,13 +21,18 @@ enum PendingErrorStore {
     let stacktrace: String?
     let sessionId: String
     let timestamp: String
+    /// `nil` in a file that an earlier version wrote, which means `true`.
+    var isFatal: Bool? = nil
+    var code: String? = nil
+    /// The name of the integration that reported the error, if any.
+    var integration: String? = nil
   }
 
   /// Caps how many pending files are kept/ingested. A crash-on-launch loop could otherwise pile up
   /// files unbounded; we keep the newest `maxPendingErrors` and drop the rest (logged at drain time).
   static let maxPendingErrors = 5
 
-  /// Writes a fatal error to disk synchronously. Best-effort: any failure is swallowed (we're on the
+  /// Writes an error to disk synchronously. Best-effort: any failure is swallowed (we're on the
   /// way to a crash and must not throw out of the error handler).
   static func write(_ error: PendingError) {
     guard let directory = try? directoryUrl() else {

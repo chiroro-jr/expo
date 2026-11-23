@@ -62,7 +62,9 @@ extension PendingErrorStore.PendingError {
       message: message,
       stacktrace: stacktrace,
       componentStack: nil,
-      isFatal: true,
+      isFatal: isFatal ?? true,
+      code: code,
+      integration: integration,
       timestamp: timestamp
     )
   }
@@ -76,14 +78,17 @@ extension PendingErrorStore.PendingError {
 /// Absent `type`/`stacktrace` are kept as explicit `null` rather than omitted (the boxed optionals
 /// encode as JSON `null`), so every `js.exception` event carries the same attribute keys. The React
 /// component stack only exists for error-boundary captures, so `expo.error.component_stack` is
-/// omitted entirely when absent rather than logged as `null` on every event.
-private func makeExceptionLogRecord(
+/// omitted entirely when absent rather than logged as `null` on every event. The same applies to
+/// `expo.error.code` and `expo.integration.name`.
+func makeExceptionLogRecord(
   source: String,
   type: String?,
   message: String,
   stacktrace: String?,
   componentStack: String?,
   isFatal: Bool,
+  code: String? = nil,
+  integration: String? = nil,
   timestamp: String = Date.now.ISO8601Format()
 ) -> LogRecord {
   var attributes: [String: Any] = [
@@ -95,6 +100,12 @@ private func makeExceptionLogRecord(
   ]
   if let componentStack {
     attributes["expo.error.component_stack"] = componentStack
+  }
+  if let code {
+    attributes["expo.error.code"] = code
+  }
+  if let integration {
+    attributes[integrationNameAttributeKey] = integration
   }
   return LogRecord(
     name: jsExceptionLogName,
