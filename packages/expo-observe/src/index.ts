@@ -44,6 +44,8 @@ export type {
   ObserveAttributes,
   ObserveConfig,
   ObserveEventName,
+  ObserveExpoUpdatesIntegrationConfig,
+  ObserveExpoUpdatesLogEntryCode,
   ObserveFeedback,
   ObserveIntegrationsConfig,
   ObserveModule,
