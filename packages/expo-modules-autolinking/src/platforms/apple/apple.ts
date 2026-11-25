@@ -72,10 +72,6 @@ export async function scanNativeModulesAsync(
   searchResults: SearchResults,
   platform: SupportedPlatform
 ): Promise<ScannedPackageClasses | null> {
-  // The scanner is a macOS binary.
-  if (process.platform !== 'darwin') {
-    return null;
-  }
   // Without expo-modules-core nothing can use the macro.
   const coreRevision = searchResults['expo-modules-core'];
   if (!coreRevision) {

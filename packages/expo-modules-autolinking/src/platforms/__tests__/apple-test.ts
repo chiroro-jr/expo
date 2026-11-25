@@ -12,6 +12,7 @@ import {
   resolveModuleAsync,
   scanNativeModulesAsync,
 } from '../apple/apple';
+import * as moduleScanner from '../apple/moduleScanner';
 import type { PackageClass, ScannedPackageClasses } from '../apple/moduleScanner';
 
 afterEach(() => {
@@ -139,12 +140,40 @@ describe(scanNativeModulesAsync, () => {
     },
   };
 
-  it('returns null on a non-macOS host', async () => {
+  it('scans modules on a non-macOS host', async () => {
+    vol.fromJSON({
+      '/app/node_modules/expo-clipboard/ios/ClipboardModule.swift': '',
+    });
+    const scanPackages = jest.fn(async () => ({
+      schemaVersion: 2,
+      modules: [
+        {
+          name: 'ClipboardModule',
+          jsName: 'Clipboard',
+          accessLevel: 'public' as const,
+          file: '/app/node_modules/expo-clipboard/ios/ClipboardModule.swift',
+          platforms: ['iOS'],
+        },
+      ],
+      warnings: [],
+      stats: { filesScanned: 1, filesParsed: 1, durationMs: 1 },
+    }));
+    jest.spyOn(moduleScanner, 'loadModulesScanner').mockReturnValue({ scanPackages });
+
+    const results = {
+      ...searchResults,
+      'expo-clipboard': {
+        name: 'expo-clipboard',
+        path: '/app/node_modules/expo-clipboard',
+        version: '1.0.0',
+      },
+    };
     // `process.platform` is a read-only accessor, so `jest.replaceProperty` can't restore it.
     const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!;
     Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
     try {
-      expect(await scanNativeModulesAsync(searchResults, 'ios')).toBeNull();
+      const scanned = await scanNativeModulesAsync(results, 'ios');
+      expect(scanned?.modules['expo-clipboard']?.map((m) => m.name)).toEqual(['ClipboardModule']);
     } finally {
       Object.defineProperty(process, 'platform', descriptor);
     }
