@@ -712,8 +712,9 @@ describe('the source-emit pass', () => {
       path.join(outDir, 'expo', 'expo-source', 'ExpoRemote', 'Package.swift'),
       'utf8'
     );
+    const { getScannerBinaryPath } = require('expo-modules-macros');
     expect(out).toContain('"-Xfrontend", "-load-plugin-executable", "-Xfrontend"');
-    expect(out).toMatch(/expo-modules-macros\/apple\/ExpoModulesMacros#ExpoModulesMacros/);
+    expect(out).toContain(`"${getScannerBinaryPath()}#ExpoModulesMacros"`);
   });
 });
 
@@ -4261,6 +4262,48 @@ describe('a Swift macro plugin that does not resolve', () => {
     );
     expect(message).toContain('Could not resolve "expo-modules-macros"');
     expect(cause).toBe('MODULE_NOT_FOUND');
+  });
+
+  it('uses getScannerBinaryPath() on non-macOS hosts', () => {
+    const coreRoot = makeTempDir('expo-spm-linux-macros-');
+    const macrosDir = path.join(coreRoot, 'node_modules', 'expo-modules-macros');
+    const linuxBin = path.join(
+      coreRoot,
+      'node_modules',
+      '@expo',
+      'modules-macros-linux-x64',
+      'ExpoModulesMacros'
+    );
+    fs.mkdirSync(macrosDir, { recursive: true });
+    fs.mkdirSync(path.dirname(linuxBin), { recursive: true });
+    fs.writeFileSync(linuxBin, '');
+    fs.writeFileSync(
+      path.join(macrosDir, 'package.json'),
+      JSON.stringify({ name: 'expo-modules-macros', main: 'index.js' })
+    );
+    fs.writeFileSync(
+      path.join(macrosDir, 'index.js'),
+      `module.exports = { getScannerBinaryPath: () => ${JSON.stringify(linuxBin)} };\n`
+    );
+
+    const script = `
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      const { macroPluginFlags } = require(${JSON.stringify(require.resolve('../plugin'))});
+      process.stdout.write(JSON.stringify(macroPluginFlags(${JSON.stringify(coreRoot)})));
+    `;
+    const { NODE_PATH: _nodePath, ...env } = process.env;
+    const flags = JSON.parse(
+      require('child_process').execFileSync(process.execPath, ['-e', script], {
+        encoding: 'utf8',
+        env,
+      })
+    );
+    expect(flags).toEqual([
+      '-Xfrontend',
+      '-load-plugin-executable',
+      '-Xfrontend',
+      `${linuxBin}#ExpoModulesMacros`,
+    ]);
   });
 });
 

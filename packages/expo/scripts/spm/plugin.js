@@ -1145,7 +1145,17 @@ function macrosPackageRoot(coreModuleRoot) {
 
 // Generated manifests load the prebuilt plugin executable with a compiler flag.
 function macroPluginTool(coreModuleRoot) {
-  const tool = path.join(macrosPackageRoot(coreModuleRoot), 'apple', 'ExpoModulesMacros');
+  const macrosRoot = macrosPackageRoot(coreModuleRoot);
+  let tool;
+  if (process.platform === 'darwin') {
+    tool = path.join(macrosRoot, 'apple', 'ExpoModulesMacros');
+  } else {
+    const macros = require(macrosRoot);
+    tool =
+      typeof macros.getScannerBinaryPath === 'function'
+        ? macros.getScannerBinaryPath()
+        : path.join(macrosRoot, 'apple', 'ExpoModulesMacros');
+  }
   if (!fs.existsSync(tool)) {
     throw pluginError(
       macroPluginFault(`The Expo Swift macro plugin is missing its executable at ${tool}.`, 'it')
